@@ -45,6 +45,53 @@ list you actually inspect.
 Design-time metrics (from stage 1) are optimistic by construction. **Trust the validation numbers
 (stage 3), not the trajectory numbers.**
 
+### Starting from a binder you already have
+
+`binder_sequences` initialises trajectories from sequences you supply rather than from noise. 
+
+Adding `mpnn_redesign: true` (`--mpnn-redesign`) switches the gradient stages off on top of that, 
+so each sequence is folded once and judged on the campaign's `_final` filters, then stages 2–4 run 
+exactly as above: MPNN draws candidates off that fold, each is refolded from scratch and scored, 
+and the survivors are ranked.
+
+```json
+{
+  "target": "hPDL1",
+  "mpnn_redesign": true,
+  "binder_sequences": { "parent": "SAEMKEVEEKFEKVKKAIE..." },
+  "redesign_max_positions": 2,
+  "redesign_interface": true,
+  "sequence_candidates": 40
+}
+```
+
+**More designs from a good one.** `mpnn_redesign: true` with no cap draws unconstrained MPNN redesigns of
+the fold, for when a design is promising but misses a downstream criterion.
+[pdl1_mpnn_redesign.json](../examples/pdl1_mpnn_redesign.json).
+
+**Local sequence exploration.** `redesign_max_positions: 2` makes every candidate a double mutant, 
+instead of redesigning all binder positions. The positions are picked at random, biased towards the ones 
+MPNN scores worst, with `redesign_position_temperature` setting how widely the picks spread over candidates. 
+Use it around a binder that is already experimentally validated. [pdl1_mpnn_redesign_max2.json](../examples/pdl1_mpnn_redesign_max2.json).
+
+**Evaluating sequences you already have.** `redesign_max_positions: 0` generates nothing: every sequence in
+`binder_sequences` is kept as written, folded, refolded by the validation ensemble and scored, 
+so a panel of custom mutants can be judged on the same terms as a design.
+[pdl1_mpnn_redesign_evaluation.json](../examples/pdl1_mpnn_redesign_evaluation.json).
+
+**Seeded de novo design.** `binder_sequences` without `mpnn_redesign` runs the gradient stages in full from
+your sequence instead of from noise. Nothing holds the design near the seed, so treat it as de novo design
+with a head start, and raise `max_trajectories`: a given sequence defaults it to one trajectory per
+sequence, which suits a redesign run but stops a gradient run after a single design.
+[pdl1_seeded_design.json](../examples/pdl1_seeded_design.json).
+
+`redesign_interface: true` is worth adding in redesign mode, as above: without it the interface of the
+sequence you gave is held and every substitution lands elsewhere. `Binder_Mutations` in the output tables
+says how far each candidate moved from its parent. The seed fixes the length, so a `binder_lengths` you
+write yourself is refused, as is a scaffold modality, rather than one of them being quietly ignored — a
+length a modality preset happens to carry is not, so `--modality binder` stays usable with a seed. See
+[Models and sequence redesign](reference.md#models-and-sequence-redesign).
+
 ---
 
 ## 2. Setting up a design
@@ -292,7 +339,7 @@ rarer** — add only what your experiment needs. The overall roles:
 | Property / objective | Pushes the design toward | Rejects unless |
 | --- | --- | --- |
 | `forced_targeting` | contact concentrated on the declared hotspots | ≥50% of hotspots contacted |
-| `humanize` | human-germline sequence + low predicted MHC anchor load | MHC anchor score under its ceiling |
+| `humanize` | humanized sequence (*planned*) + low predicted MHC anchor load | MHC anchor score under its ceiling |
 | `disulfide_staple` | a geometrically valid disulfide (cysteine allowed) | ≥1 disulfide formed |
 | `protease_stable` | fewer protease-cleavage motifs, buried loops and termini | protease-site / exposed-loop / terminus-exposure scores under their ceilings |
 | `termini_accessible` | both chain ends angled away from the target | termini-away angle clears its floor |
@@ -316,16 +363,11 @@ validation. Requires a structured target and `hotspots`. *Caveat:* it steers **w
 lands, not how tightly it binds, and the trick runs only at design time — a design still has to clear
 the normal interface filters against the true target.
 
-**`humanize` — germline preference + T-cell-epitope proxy.** It biases the binder sequence toward
-**human-germline** residue preferences and scores it against a panel of common **HLA anchor motifs**
+**`humanize` — immunogenicity proxy.** In development, currently scores the designed sequence against a panel of common **MHC anchor motifs**
 (MHC class I: 13 common HLA-A/B alleles; MHC class II: common HLA-DRB1 alleles, weighted highest via
-`humanization_mhc2_weight` because class-II presentation drives the T-helper response behind anti-drug
-antibodies), penalising stretches that read as strong T-cell epitopes; the `MHC_Anchor_Score` filter
-caps that load. *Caveat:* this is a coarse **sequence-anchor proxy over a fixed allele panel** — not a
-validated immunogenicity assay (no MAPPs, no T-cell/ADA data, no netMHC-grade prediction). It trims
-obvious epitope liabilities; it does **not** establish that a binder or antibody is non-immunogenic —
-the designed CDRs are novel sequence, and real immunogenicity depends on antigen processing, the full
-patient allele repertoire, aggregation and dosing. Treat a low score as a proxy, not a clearance.
+`humanization_mhc2_weight`). 
+The corresponding filter is `MHC_Anchor_Score`. 
+*Caveat:* currently this is a coarse MHC presentation estimator over a fixed allele panel. It does **not** establish that a designed protein is non-immunogenic and should be treated as a proxy.
 
 **`protease_stable` — a small serum-protease panel plus a burial term.** It penalises predicted cleavage
 against four canonical proteases — **trypsin** (after K/R), **chymotrypsin** (after F/Y/W/L/M),
@@ -395,6 +437,7 @@ than designing something incoherent:
 | `homo_oligomer` (`copies` > 1) with `multidomain` | the domain split doesn't engage across identical oligomer copies |
 | a **FASTA / disordered target** with `forced_targeting` or `coldspots` | both need residue numbers and a resolved backbone that a sequence target doesn't carry |
 | `induced_fit` with **detargeting** | induced fit freezes one bound structure to compare the free state against, so it designs against a single target |
+| `binder_sequences` with a **scaffold modality**, or with a `binder_lengths` you write yourself | both decide what the binder starts as: a sequence you gave already fixes the sequence and its length, and no stage can insert or delete a residue. Refused outright rather than silently ignored |
 
 Everything else is fair game — targeting options (hotspots, coldspots, forced targeting, detargeting),
 developability properties (humanize, protease_stable, disulfide_staple), termini controls and topology

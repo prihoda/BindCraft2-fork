@@ -187,12 +187,18 @@ class Protein:
 
     @staticmethod
     def unresolved_atom_arrays(length: int) -> tuple[Array, Array, Array]:
-        return jnp.zeros((length, len(ATOM_NAMES), 3), dtype=jnp.float16), jnp.zeros((length, len(ATOM_NAMES)), dtype=bool), jnp.arange(length, dtype=jnp.int32)
+        return jnp.zeros((length, len(ATOM_NAMES), 3), dtype=jnp.float16), jnp.zeros((length, len(ATOM_NAMES)), dtype=bool), jnp.arange(1, length+1, dtype=jnp.int32)
 
     @staticmethod
     def empty(length: int, key: Array) -> 'Protein':
         atoms, atom_mask, residue_index = Protein.unresolved_atom_arrays(length)
         return Protein(sequence=0.01 * jax.random.normal(key, (length, len(AMINO_ACIDS)), dtype=jnp.float16), atoms=atoms, atom_mask=atom_mask, flags=jnp.full((length,), ResidueFlags.DESIGN, dtype=jnp.uint8), residue_index=residue_index)
+
+    @staticmethod
+    def from_binder_sequence(name: str, amino_acid_sequence: str) -> 'Protein':
+        #sequence only: the coordinates are never handed to the predictor, so pLDDT and ipTM still tell the redesigns apart
+        parent = Protein.from_fasta(f'>{name}\n{amino_acid_sequence}')
+        return parent.replace(flags=(parent.flags | int(ResidueFlags.DESIGN)).astype(jnp.uint8))
 
     @staticmethod
     def from_fasta(source: str, chain_letter: str='A', flags: str='') -> 'Protein':
