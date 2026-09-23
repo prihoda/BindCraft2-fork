@@ -178,7 +178,6 @@
     "max_workers_per_gpu": null,
     "min_binder_disulfides_final": null,
     "min_c_terminus_away_cosine_final": null,
-    "min_binder_mutations_final": null,
     "min_domain_separation_ratio_final": null,
     "min_domain_size": null,
     "min_epitope_residues_contacted_final": null,

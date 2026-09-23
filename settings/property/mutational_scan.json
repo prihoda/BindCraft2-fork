@@ -6,6 +6,5 @@
   "harden_steps": 0,
   "mutate_steps": 50,
   "max_mutations_per_sequence": 1,
-  "min_binder_mutations_final": 1,
   "sequence_candidates": 1
 }

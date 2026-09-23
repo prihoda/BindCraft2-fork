@@ -32,7 +32,7 @@ Each layer overrides the ones above it in the table. A target therefore wins ove
 
 ### Every setting at its default
 
-[settings/core/reference.json](../settings/core/reference.json) is the catalogue of all 238 settings BC2 reads, each written at its default. `null` there means off or unset, not zero. **This file is never loaded**; it is documentation only. Change a default for every campaign in [settings/core/default.json](../settings/core/default.json), and change one campaign in its own JSON or with `--set`.
+[settings/core/reference.json](../settings/core/reference.json) is the catalogue of all 237 settings BC2 reads, each written at its default. `null` there means off or unset, not zero. **This file is never loaded**; it is documentation only. Change a default for every campaign in [settings/core/default.json](../settings/core/default.json), and change one campaign in its own JSON or with `--set`.
 
 ### Paths
 
@@ -173,7 +173,7 @@ These booleans default to false. They select both objectives and associated thre
 ### Mutational scan
 
 `binder_sequences` starts a campaign from binder sequences you already have instead of from a fold or a
-length: `{"binder1": "AEAERLAAT..."}`, one entry per parent, each a plain one-letter sequence. Each
+length: `{"binder1": "SAEMKEVEEK..."}`, one entry per parent, each a plain one-letter sequence. Each
 trajectory draws one parent, and the parent's identity is recorded in the design name and hash so two
 parents never collide.
 
@@ -182,15 +182,18 @@ point: the binder is folded from scratch every time, so pLDDT and ipTM are free 
 from its parent. The whole binder is held through ProteinMPNN, so the sequence the `mutate` stage
 settled on is the sequence validation actually scores.
 
-Before any trajectory runs, each parent is folded once against the target and put through the campaign's
-own `final` filters. If a parent does not already clear them the campaign **stops** and prints what it
-measured — scanning a neighbourhood only says something about a design that is already good.
+Before any trajectory runs, each parent is folded once against the target and judged on the `mutate`
+stage's own floors — the bar every trajectory of the scan has to clear anyway. Each filter is printed on
+its own line with its threshold, the value measured and whether it passed, and if a parent does not clear
+them the campaign **stops**: scanning a neighbourhood only says something about a design that is already
+good.
 
 The `mutational_scan` property preset switches off all four gradient stages, gives the `mutate` stage 50
-rounds, caps the walk at `max_mutations_per_sequence: 1`, and requires `min_binder_mutations_final: 1` so a trajectory
-that improved on nothing does not re-accept the parent. Set `max_mutations_per_sequence: 2` for double mutants; raise
-`mutate_steps` to cover more of the neighbourhood per trajectory, at a proportional cost. The
-`Binder_Mutations` column in the ranked table reports each accepted design's distance from its parent.
+rounds, and caps the walk at `max_mutations_per_sequence: 1`. Set `max_mutations_per_sequence: 2` for
+double mutants; raise `mutate_steps` to cover more of the neighbourhood per trajectory, at a proportional
+cost. A trajectory whose walk improved on nothing hands back the parent unchanged, and the `mutate` stage
+fails it as `unchanged_parent` rather than letting it be re-accepted as a design of its own. The
+`Binder_Mutations` column in the ranked table records each accepted design's distance from its parent.
 
 ### Targeting options
 

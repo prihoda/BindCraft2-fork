@@ -257,6 +257,10 @@ def judge_stage(trajectory: TrajectoryState, design_settings: BinderDesignSettin
     filter_result, measured = evaluate_design_filters(stage_filters, trajectory.protein_states, filter_predictions) if stage_filters else (True, {})
     return (trajectory if filter_result is True else trajectory._replace(predictions=filter_predictions, failed=tuple(filter_result))), measured
 
+def binder_sequences_unchanged(parent_states: ProteinStates, protein_states: ProteinStates, binder_chains: tuple[str, ...]) -> bool:
+    parent_complex, designed_complex = next(iter(parent_states.values())), next(iter(protein_states.values()))
+    return all(bool((parent_complex[name].sequence.argmax(-1) == designed_complex[name].sequence.argmax(-1)).all()) for name in binder_chains if name in parent_complex and name in designed_complex)
+
 def run_mutation_polish(design_settings: BinderDesignSettings, design_model: DifferentiableProteinPredictor, protein_states: ProteinStates, wild_type_states: ProteinStates, losses: dict[str, DesignLoss], binder_alone_reference: StructurePrediction | None, multi_chain_binders: tuple[tuple[str, ...], ...], mutation_random_key: Array, conformation_random_key: Array, target_names: tuple[str, ...], recorder: TrajectoryRecorder | None) -> tuple[ProteinStates, StructurePredictions, str | None]:
     settings = design_settings.settings
     mutate_steps = design_stage_rounds(settings)['mutate']
@@ -275,6 +279,9 @@ def run_mutation_polish(design_settings: BinderDesignSettings, design_model: Dif
     predictions = design_model.predict(protein_states)
     stage_filters = design_stage_filters(design_settings, protein_states, 'mutate')
     filter_result, measured = evaluate_design_filters(stage_filters, protein_states, predictions) if stage_filters else (True, {})
+    #a mutational scan whose walk improved on nothing hands back the sequence it started from, and re-accepting the parent as a design of its own is never the answer
+    if design_settings.binder.sequences and binder_sequences_unchanged(wild_type_states, protein_states, design_settings.binder_chains):
+        filter_result = ['unchanged_parent'] if filter_result is True else [*filter_result, 'unchanged_parent']
     print(stage_outcome('mutate', filter_result is True, () if filter_result is True else tuple(filter_result), target_names, measured), flush=True)
     return protein_states, predictions, None if filter_result is True else 'mutate'
 

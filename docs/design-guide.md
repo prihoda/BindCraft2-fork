@@ -316,7 +316,7 @@ that starts from a **finished sequence**:
 ```json
 {
   "target": "hPDL1",
-  "binder_sequences": {"binder1": "AEAERLAATLAYVAEHEGEDLRFGIIELSTKISIKESPRVPGTPEAFRAALAAALAEAQALVAAAKGIASGSVHVVAHMERPSGQEDTLFAWRFDV"},
+  "binder_sequences": {"binder1": "SAEMKEVEEKFEKVKKAIEEEAKKTGDEELLWIIRVYENILNFMKSKPWFTPEHLEWLVKELARWSPEAQKVLE"},
   "mutational_scan": true,
   "number_of_final_designs": 30,
   "max_trajectories": 60
