@@ -186,15 +186,21 @@ def campaign_budget_exhausted(max_trajectories: int, trajectory_count: int, acce
     projected = -(-requested_designs * trajectory_count // accepted_design_count)
     return f'campaign stopped at max_trajectories={max_trajectories}: {accepted_design_count}/{requested_designs} accepted in {trajectory_count} trajectories, so {requested_designs} needs roughly {projected} at this rate'
 
+def binding_threshold(name: str, threshold: float | None, higher: bool) -> bool:
+    #a threshold that nothing can fail is recorded rather than required, so it is not worth naming
+    if threshold is None or not math.isfinite(float(threshold)):
+        return False
+    return not ((higher and float(threshold) <= 0) or (not higher and name.endswith('_Fraction') and float(threshold) >= 1))
+
+def filter_requirement(name: str, threshold: float, higher: bool) -> str:
+    return f"{name} {'>=' if higher else '<='} {threshold:g}"
+
 def acceptance_filters(settings: dict) -> tuple[str, ...]:
     filters = []
     for name, entry in sorted((settings.get('filters') or {}).items()):
         threshold, higher = entry.get('threshold'), entry.get('higher', False)
-        if threshold is None or not math.isfinite(float(threshold)):
-            continue
-        if (higher and float(threshold) <= 0) or (not higher and name.endswith('_Fraction') and float(threshold) >= 1):
-            continue
-        filters.append(f"{name} {'>=' if higher else '<='} {threshold:g}")
+        if binding_threshold(name, threshold, higher):
+            filters.append(filter_requirement(name, float(threshold), higher))
     return tuple(filters)
 
 def design_worker_index() -> int | None:

@@ -4,7 +4,7 @@ import time
 import jax
 from bindcraft.af2 import AlphaFoldDesignModel, MONOMER_POOL, MULTIMER_POOL, campaign_length_bucket, padded_prediction_length
 from bindcraft.campaign_output import trajectory_output_path, CampaignProgress, DEFAULT_PROJECT_FOLDER, RANKING_METRIC, RANK_STAGE, REFOLD_STAGE, TRAJECTORY_STAGE, accepted_state_suffixes, append_accepted_design, append_campaign_metrics, archive_trajectory_folder, designed_span_stamp, discard_trajectory_structures, drawn_weight_stamp, model_score_stamp, rank_accepted_designs, reprediction_facts, structure_metadata, stage_folder, stage_table, target_ordered_row, timing_stamp, weighted_target_order, write_campaign_metadata, write_campaign_summary
-from bindcraft.campaign_log import binder_optimization, campaign_budget_exhausted, campaign_closed, campaign_header, campaign_label, design_worker_index, speaks_for_the_campaign, trajectory_already_designed, trajectory_design_label, trajectory_header
+from bindcraft.campaign_log import binder_optimization, binding_threshold, campaign_budget_exhausted, campaign_closed, campaign_header, campaign_label, design_worker_index, filter_requirement, speaks_for_the_campaign, trajectory_already_designed, trajectory_design_label, trajectory_header
 from bindcraft.design_identity import design_hash, design_name
 from bindcraft.parameter_sweep import arm_trajectory_budget, autotuned_settings, autotuned_stamp, parameter_sweep_arms, parameter_sweep_options, sweep_block_budgets, write_sweep_record
 from bindcraft.MPNN_stage import redesign_and_validate_binders
@@ -70,12 +70,22 @@ def refuse_unqualified_parent_sequences(design_settings: BinderDesignSettings, d
         parent_settings = build_design_settings({**design_settings.settings, 'binder_sequences': {parent_name: parent_sequence}})
         protein_states, _multi_chain_binders, _losses = initialize_design_trajectory(parent_settings, key)
         predictions = design_model.predict(protein_states)
-        stage_filters = design_stage_filters(parent_settings, protein_states, 'final', campaign_filters=parent_settings.filters)
+        #the mutate stage's own floors on the design model that runs it, which is the bar every trajectory of this scan has to clear before it is ever redesigned
+        stage_filters = design_stage_filters(parent_settings, protein_states, 'mutate')
         filter_result, measured = evaluate_design_filters(stage_filters, protein_states, predictions)
-        report = ', '.join(f'{name}={value:.3f}' for name, value in sorted(measured.items()))
+        #one line per required filter, in the notation the campaign banner names its filters in, so the parent reads against the bar it was judged on
+        print(f'mutational scan: parent {parent_name} judged on the mutate stage', flush=True)
+        for name, design_filter in sorted(stage_filters.items()):
+            if not binding_threshold(name, design_filter.threshold, design_filter.higher):
+                continue
+            requirement = filter_requirement(name, design_filter.threshold, design_filter.higher)
+            if name not in measured:
+                print(f'  {requirement} | not measured | {"FAIL" if design_filter.mandatory else "skipped"}', flush=True)
+                continue
+            passed = measured[name] >= design_filter.threshold if design_filter.higher else measured[name] <= design_filter.threshold
+            print(f'  {requirement} | {measured[name]:.3f} | {"PASS" if passed else "FAIL"}', flush=True)
         if filter_result is not True:
-            raise ValueError(f"binder_sequences[{parent_name!r}] does not already clear this campaign: {', '.join(filter_result)}. Measured {report}.")
-        print(f'mutational scan: parent {parent_name} clears the bar | {report}', flush=True)
+            raise ValueError(f"binder_sequences[{parent_name!r}] does not already clear this campaign: {', '.join(filter_result)}. See the per-filter lines printed above.")
 
 def apply_desperation_settings(design_model, validation_model, settings: dict) -> None:
     design_model.num_recycle = int(settings.get('design_recycles', DEFAULT_SETTINGS['design_recycles']))
