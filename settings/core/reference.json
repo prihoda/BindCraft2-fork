@@ -102,6 +102,7 @@
     "induced_fit_steps": null,
     "induced_fit_tm_target": null,
     "initial_guess": false,
+    "initial_guess_prior": false,
     "interface_contact_distance": null,
     "kept_sequences": 1,
     "length_bucket_size": null,

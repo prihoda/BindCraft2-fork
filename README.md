@@ -160,6 +160,7 @@ Add a compatible property as a command-line flag or a top-level JSON entry:
 | **Nearby termini** — bring the N and C termini together | `--termini-together` | `"termini_together": true` |
 | **Accessible termini** — direct both chain ends away from the target | `--termini-accessible` | `"termini_accessible": true` |
 | **Initial guess** — re-predict each candidate from the pose the trajectory folded | `--initial-guess` | `"initial_guess": true` |
+| **Initial guess prior** — recycle the re-prediction from that pose as well, which holds a target of numbering-separated segments apart | `--initial-guess-prior` | `"initial_guess_prior": true` |
 | **Big bang** — seed the gradient stages too, so a binder folded from nothing starts at the origin | `--bigbang` | `"bigbang": true` |
 
 For example:
@@ -168,7 +169,7 @@ For example:
 bindcraft design examples/pdl1.json --mixed-topology --set 'project_folder=results/pdl1_mixed'
 ```
 
-These properties are judged using computational proxies. See [property objectives and acceptance filters](docs/reference.md#property-objectives-and-acceptance-filters) for what each one measures and requires, and [starting conformations](docs/reference.md#starting-conformations) for the optional `--initial-guess` and `--bigbang` flags.
+These properties are judged using computational proxies. See [property objectives and acceptance filters](docs/reference.md#property-objectives-and-acceptance-filters) for what each one measures and requires, and [starting conformations](docs/reference.md#starting-conformations) for the optional `--initial-guess`, `--initial-guess-prior` and `--bigbang` flags.
 
 ### Combining modalities
 

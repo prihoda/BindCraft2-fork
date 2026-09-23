@@ -16,7 +16,7 @@ from bindcraft.model_weights import model_weights
 from bindcraft.preflight import cleaned_campaign_settings, preflight_campaign
 from bindcraft.protein import BINDER_ALONE, StructurePrediction, relax_protein_complex, superposed_on_binder, write_structure
 from bindcraft.proteinmpnn import ProteinMPNNSequenceModel
-from bindcraft.settings import DEFAULT_SETTINGS, PRESET_TIERS, build_design_settings, design_seeds_from_given_coordinates, parse_setting_overrides, read_campaign_metadata, read_settings, requested_core_profiles, requested_preset_names, resolve_cyclic_offset_mode, resolve_validation_model, select_design_and_validation_models, target_state_names, validation_seeds_from_given_coordinates
+from bindcraft.settings import DEFAULT_SETTINGS, PRESET_TIERS, build_design_settings, design_seeds_from_given_coordinates, parse_setting_overrides, read_campaign_metadata, read_settings, requested_core_profiles, requested_preset_names, resolve_cyclic_offset_mode, resolve_validation_model, select_design_and_validation_models, target_state_names, validation_seeds_from_given_coordinates, validation_seeds_recycling_prior
 from bindcraft.protein_preparation import receptor_chain_layouts, design_residue_count, frame_holding_target, initialize_design_trajectory, prepare_targets, states_holding_the_frame, target_frame_report, sampled_trajectory_values, validation_target_states
 from bindcraft.trajectory import primary_target_state, run_trajectory
 from bindcraft.trajectory_output import copy_trajectory_animation
@@ -73,6 +73,7 @@ def apply_desperation_settings(design_model, validation_model, settings: dict) -
         design_model.bigbang_initialization = design_seeds_from_given_coordinates(settings)
     if validation_model is not None:
         validation_model.bigbang_initialization = validation_seeds_from_given_coordinates(settings)
+        validation_model.initial_guess_prior = validation_seeds_recycling_prior(settings)
 
 def desperate_prediction_pools(design_model, validation_model, settings: dict, build_validation_model) -> tuple:
     selected_models = select_design_and_validation_models(settings, MULTIMER_POOL, MONOMER_POOL)

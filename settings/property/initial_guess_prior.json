@@ -1,0 +1,4 @@
+{
+  "description": "Recycle the re-prediction of an accepted candidate from the pose the trajectory folded, which holds a target of numbering-separated segments apart",
+  "initial_guess_prior": true
+}

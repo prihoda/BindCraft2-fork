@@ -32,7 +32,7 @@ Each layer overrides the ones above it in the table. A target therefore wins ove
 
 ### Every setting at its default
 
-[settings/core/reference.json](../settings/core/reference.json) is the catalogue of all 235 settings BC2 reads, each written at its default. `null` there means off or unset, not zero. **This file is never loaded**; it is documentation only. Change a default for every campaign in [settings/core/default.json](../settings/core/default.json), and change one campaign in its own JSON or with `--set`.
+[settings/core/reference.json](../settings/core/reference.json) is the catalogue of all 236 settings BC2 reads, each written at its default. `null` there means off or unset, not zero. **This file is never loaded**; it is documentation only. Change a default for every campaign in [settings/core/default.json](../settings/core/default.json), and change one campaign in its own JSON or with `--set`.
 
 ### Paths
 
@@ -209,6 +209,7 @@ Detargeting only checks the off-targets supplied. Use `targets[].objective: "det
 | Setting | Default | Why change it |
 | --- | --- | --- |
 | `initial_guess` / `--initial-guess` | false | Start the re-prediction of each redesigned candidate from the pose the trajectory folded. The gradient stages are untouched, and a binder folded from nothing reaches it the same way a scaffold does, because ProteinMPNN decodes onto the predicted backbone. Measured on 17 matched candidates it raised binder pLDDT on every one and left interface pTM and pAE flat to slightly worse, so it is off by default. Rungs 1, 3 and 5 to 7 of the [desperation ladder](#the-desperation-ladder) turn it on. |
+| `initial_guess_prior` / `--initial-guess-prior` | false | Also hand the trajectory's pose to the re-prediction as its **recycling prior**, which is the initial guess of `af2_initial_guess` and of BindCraft 1's `predict_initial_guess`: the coordinates enter the pair representation as a distogram at every recycle, where `initial_guess` alone only sets the structure module's first frames. Reach for it when the target is **one chain cut into numbering-separated segments** (an epitope patch collected across a trimer, say): without the prior, monomer validation pulls the segment ends together — measured at 3.7 to 4.1 Å across 8 boundaries that the design had 10.8 to 56.5 Å apart, at a target pLDDT of 46, which rejected every candidate of a campaign. Validation only, like `initial_guess`; the gradient stages are untouched, where a de novo binder's coordinates are still at the origin and would make a degenerate prior. Not on the desperation ladder. |
 | `bigbang` / `--bigbang` | false | Property flag that sets `bigbang_initialization`. |
 | `bigbang_initialization` | false | Also start the gradient stages from the coordinates on hand, so the target begins folded in its own frame while a binder folded from nothing still springs from the origin. Measured to cost a campaign: 20 of 20 trajectories died at screen at a binder pLDDT of 0.56 to 0.59 where flexibility alone put 5 of 6 past screen at 0.81, and seeding a VHH trajectory, which does have coordinates to start from, lost pLDDT and interface pTM on 6 of 6. Not on the desperation ladder, and not changed by the autotuner. |
 | `target_flexibility` | 0 | Fraction of templated target residues whose sequence and sidechain information are withheld, while retaining their backbone. Increase only when target-side flexibility is part of the experiment. |
@@ -403,7 +404,7 @@ Off-target stage ceilings use `max_detarget_iptm_<stage>`, and acceptance reject
 | `desperation_trajectories` | 750 | Trajectories since the last accepted design before the first rung of that ladder is taken. |
 | `parameter_sweep` | Absent | Compare controlled variants of selected settings; `true` uses default axes, or supply the object below. |
 
-The autotuner reviews blocks of ten trajectories and moves two things only: the screen and refine stage lengths, each held between half and twice the length the campaign configured, and, where `autotune_loss_weights` is set, the `weights_*` the campaign changed itself. An alternated weight returns to the campaign's own value as soon as a design is accepted. The autotuner never touches recycles, target flexibility, the validation pool, `initial_guess` or `bigbang_initialization`. Its values live in `.campaign_state.json`, and each trajectory's `autotuned` column records what had been moved when it ran.
+The autotuner reviews blocks of ten trajectories and moves two things only: the screen and refine stage lengths, each held between half and twice the length the campaign configured, and, where `autotune_loss_weights` is set, the `weights_*` the campaign changed itself. An alternated weight returns to the campaign's own value as soon as a design is accepted. The autotuner never touches recycles, target flexibility, the validation pool, `initial_guess`, `initial_guess_prior` or `bigbang_initialization`. Its values live in `.campaign_state.json`, and each trajectory's `autotuned` column records what had been moved when it ran.
 
 ### The desperation ladder
 

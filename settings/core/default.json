@@ -37,6 +37,7 @@
   "target_flexibility": 0.0,
   "bigbang_initialization": false,
   "initial_guess": false,
+  "initial_guess_prior": false,
   "desperation": true,
   "weights_plddt_loss": 0.1,
   "weights_iptm_loss": 0.05,

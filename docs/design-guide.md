@@ -303,7 +303,7 @@ rarer** — add only what your experiment needs. The overall roles:
 | `multidomain` (objective) | two separated domains joined by a linker | domain-separation / interdomain-contact / chain-break checks |
 | detargeting (negative `weight`) | the binder repelled from the off-target | off-target `i_pTM` and interface residues under their ceilings |
 
-`initial_guess` and `bigbang` are the exceptions — they change *how* optimisation is initialised, not
+`initial_guess`, `initial_guess_prior` and `bigbang` are the exceptions — they change *how* optimisation is initialised, not
 what is optimised, so they carry no filter (see §5).
 
 ### What each one actually does — and what it does *not* tell you
@@ -355,8 +355,8 @@ while requiring sheet, steering away from the all-α helical bundles de novo des
 it caps helix at ≤50% and requires ≥20% sheet. *Caveat:* β-rich de novo folds are harder to design and
 predict, so expect a lower hit rate.
 
-**`initial_guess` / `bigbang` — how AlphaFold is initialised.** Both change the *starting coordinates*
-AlphaFold works from, not the objective, so neither adds a filter of its own.
+**`initial_guess` / `initial_guess_prior` / `bigbang` — how AlphaFold is initialised.** All three change
+the *starting coordinates* AlphaFold works from, not the objective, so none of them adds a filter of its own.
 - **`initial_guess`** re-predicts each redesigned candidate **starting from the pose the trajectory
   folded** — instead of predicting the sequence from a blank slate, AlphaFold begins its recycling from
   the design's own backbone. This helps it converge to the intended fold and interface for **difficult
@@ -365,11 +365,18 @@ AlphaFold works from, not the objective, so neither adds a filter of its own.
 - **`bigbang`** (`bigbang_initialization`) seeds the **gradient design stages** from the coordinates on
   hand rather than from the origin, giving AlphaFold a foothold on **large complexes (>~600 aa)** it
   struggles to build from nothing — which is where reprediction of a large motif otherwise fails.
+- **`initial_guess_prior`** hands that same pose to the re-prediction as its **recycling prior**, so the
+  coordinates re-enter the pair representation as a distogram at every recycle instead of only setting
+  the structure module's first frames. This is the initial guess of `af2_initial_guess` and of
+  BindCraft 1, and what it buys you is a **target made of numbering-separated segments** — an epitope
+  patch collected across a trimer — held apart rather than fused: without it, monomer validation closed
+  8 such boundaries to 3.7–4.1 Å from the 10.8–56.5 Å the design had, and rejected every candidate.
+  `validation_model: "multimer"` is the other way out of the same problem.
 
 The trade-off is **bias**: because the predictor is handed a structure close to the answer, the
 validation is slightly **less independent**, so a design that only holds up because it was given its
 own pose is a potential false positive — expect a **modest rise in false-positive rate** versus a fully
-from-scratch refold. That bias is deliberate and bounded, and importantly **both options have been
+from-scratch refold. That bias is deliberate and bounded, and importantly **`initial_guess` and `bigbang` have been
 experimentally validated** — designs accepted with them have yielded real binders — so they are sound
 tools for hard targets and difficult motifs. Use them when a target won't repredict otherwise; where
 you can, spot-check a few winners with the option off. (`initial_guess` is also a rung of the
