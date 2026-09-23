@@ -303,8 +303,44 @@ rarer** — add only what your experiment needs. The overall roles:
 | `multidomain` (objective) | two separated domains joined by a linker | domain-separation / interdomain-contact / chain-break checks |
 | detargeting (negative `weight`) | the binder repelled from the off-target | off-target `i_pTM` and interface residues under their ceilings |
 
+| `mutational_scan` | small changes to a binder you already accepted | the design differs from its parent (see below) |
+
 `initial_guess` and `bigbang` are the exceptions — they change *how* optimisation is initialised, not
 what is optimised, so they carry no filter (see §5).
+
+### Scanning around a binder you already have
+
+Everything above designs a binder from nothing or from a scaffold. `mutational_scan` is the one workflow
+that starts from a **finished sequence**:
+
+```json
+{
+  "target": "hPDL1",
+  "binder_sequences": {"binder1": "AEAERLAATLAYVAEHEGEDLRFGIIELSTKISIKESPRVPGTPEAFRAALAAALAEAQALVAAAKGIASGSVHVVAHMERPSGQEDTLFAWRFDV"},
+  "mutational_scan": true,
+  "number_of_final_designs": 30,
+  "max_trajectories": 60
+}
+```
+
+It switches off all four gradient stages and runs only the `mutate` stage — the semi-greedy walk that
+normally polishes a finished trajectory — capped at one substitution from the parent. Each trajectory
+therefore emits one point mutant, scored by the campaign's own losses and validated by the normal refold
+path. `"max_mutations_per_sequence": 2` gives doubles instead.
+
+The parent goes in as **sequence only**; its coordinates are never shown to the predictor. That matters:
+if the parent's backbone were handed over as a template, AlphaFold would simply reproduce it and every
+variant would score almost identically. Folding from scratch each time is what lets pLDDT and ipTM
+separate a variant from its parent at all.
+
+Before any trajectory runs, BC2 folds each parent once and puts it through the campaign's own acceptance
+filters. **If the parent does not already pass, the campaign refuses to start.** This is deliberate: the
+walk is local, so it can only improve on something that already works. It is not affinity maturation —
+there is no affinity term anywhere in BC2, and no guarantee the mutants bind better. What you get is a
+ranked neighbourhood: 20 designs one substitution away, each scoring at least as well as the parent on
+the campaign's own metrics, which is a better-than-random starting set for an assay. Read the
+`Binder_Mutations` column to see how far each accepted design travelled, and check the mutants against
+each other rather than trusting the ranking to be an affinity order.
 
 ### What each one actually does — and what it does *not* tell you
 

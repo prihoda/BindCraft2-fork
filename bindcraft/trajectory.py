@@ -219,6 +219,8 @@ def build_stage_plan(design_settings: BinderDesignSettings, losses: dict[str, De
                            'harden': OneHotSequenceOptimizer(iterations=stage_rounds['harden'], multi_chain_binders=multi_chain_binders)}
     stage_plan = []
     for name in STAGE_NAMES:
+        if not stage_rounds[name]:
+            continue  #no rounds means the stage is switched off, rather than a schedule that completes before it ever predicts
         prepare, review, advance = [], [], []
         if name == 'harden' and settings.get('forced_targeting'):
             prepare.append(restore_wild_type_target_operation(design_settings, wild_type_states))
@@ -262,7 +264,8 @@ def run_mutation_polish(design_settings: BinderDesignSettings, design_model: Dif
         recorder.design_stage = 'mutate'
     design_model.dropout = False
     #pLDDT weighting, for multitargeting
-    mutation_sampler = SemigreedySequenceSampler(key=mutation_random_key, multi_chain_binders=multi_chain_binders, mutation_weighting='plddt' if len(design_settings.prepared_states) > 1 else 'interface_iptm')
+    mutation_sampler = SemigreedySequenceSampler(key=mutation_random_key, multi_chain_binders=multi_chain_binders, mutation_weighting='plddt' if len(design_settings.prepared_states) > 1 else 'interface_iptm',
+                                                 max_mutations_per_sequence=int(settings.get('max_mutations_per_sequence', 0) or 0), parent_states=wild_type_states)
     design_schedule = build_design_schedule(design_settings, wild_type_states, losses, mutate_steps, conformation_random_key, False)
     if len(design_settings.prepared_states) > 1:
         protein_states = transfer_binder_sequences(wild_type_states, protein_states)
@@ -291,7 +294,9 @@ def run_trajectory(design_settings: BinderDesignSettings, design_model: Differen
             for name, protein_complex in protein_states.items():
                 write_structure({chain: protein for chain, protein in protein_complex.items() if chain == target_chain_name(design_settings.target_chain_prefix, name)}, trajectory_output_path(trajectory_directory, f'forced_targeting_{name}.pdb'), receptor_chains=receptor_chain_layouts(design_settings))
     stage_plan = build_stage_plan(design_settings, losses, multi_chain_binders, design_model, wild_type_states, recorder)
-    target_schedule = build_target_schedule(design_settings, protein_states, stage_plan[0].sequence_optimizer.iterations, stage_plan[0].name)
+    #a mutational scan runs no gradient stage at all, so the schedule is read off the mutate stage that does run
+    first_stage = stage_plan[0] if stage_plan else None
+    target_schedule = build_target_schedule(design_settings, protein_states, first_stage.sequence_optimizer.iterations if first_stage else design_stage_rounds(settings)['mutate'], first_stage.name if first_stage else 'mutate')
     trajectory, failed_stage = TrajectoryState(protein_states, {}, protein_states, losses), None
     for stage in stage_plan:
         if recorder is not None:

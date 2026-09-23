@@ -52,7 +52,7 @@ def mark_redesign_residues(protein_complex: dict[str, Protein], binder: str, tar
         if keep_interface or mobile_binder_residues is not None:
             held_residues = held_residues | binder_target_contact_masks(protein_complex[name], protein_complex[target], cutoff)[0]
         if hold_framework:
-            held_residues = held_residues | has_residue_flag(protein_complex[name].flags, ResidueFlags.TEMPLATE) #mask out fold conditioning scaffold
+            held_residues = held_residues | has_residue_flag(protein_complex[name].flags, ResidueFlags.TEMPLATE | ResidueFlags.SEQUENCE) #mask out a fold conditioning scaffold, or a sequence that was given
         if linker_binder_residues is not None:
             held_residues = held_residues | linker_binder_residues #mask out the inter-domain linker, multi-domain case
         held_residue_masks[name] = held_residues
@@ -166,9 +166,10 @@ def prepare_binder_redesign(protein_complex: dict[str, Protein], design_settings
     mobile_residues = induced_fit_mobile_residues(protein_complex[binder], binder_alone_complex[binder], float(settings.get('induced_fit_mpnn_threshold', 2.0)), int(settings.get('induced_fit_mpnn_shell', 1)), float(settings.get('induced_fit_mpnn_designed_share', INDUCED_FIT_DESIGNED_SHARE))) if binder_alone_complex else None #induced fit case
     if mobile_residues is not None:
         print(f'induced fit: holding {int(mobile_residues.sum())} of {len(protein_complex[binder])} residue(s) that move between the two states through ProteinMPNN', flush=True)
-    hold_framework = bool(settings.get('binder_scaffold')) #fold conditioning case
+    hold_framework = bool(settings.get('binder_scaffold') or settings.get('binder_sequences')) #fold conditioning and mutational scan cases
     if hold_framework:
-        print(f"scaffold: holding {sum((int(has_residue_flag(protein_complex[name].flags, ResidueFlags.TEMPLATE).sum()) for name in binder_copy_chains(protein_complex, binder)))} framework residue(s) through ProteinMPNN", flush=True)
+        held_flags = ResidueFlags.TEMPLATE | ResidueFlags.SEQUENCE
+        print(f"{'scaffold' if settings.get('binder_scaffold') else 'given sequence'}: holding {sum((int(has_residue_flag(protein_complex[name].flags, held_flags).sum()) for name in binder_copy_chains(protein_complex, binder)))} residue(s) through ProteinMPNN", flush=True)
     linker_residues = redesign_linker_residues(settings, protein_complex, binder, design_pae, trajectory_seed) #multi-domain case
     redesign_complex = mark_redesign_residues(protein_complex, binder, target, keep_interface, mobile_binder_residues=mobile_residues, hold_framework=hold_framework, multi_chain_binder=multi_chain_binder, linker_binder_residues=linker_residues)
     #a detarget is validated against but never decoded on

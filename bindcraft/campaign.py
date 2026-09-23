@@ -16,7 +16,7 @@ from bindcraft.model_weights import model_weights
 from bindcraft.preflight import cleaned_campaign_settings, preflight_campaign
 from bindcraft.protein import BINDER_ALONE, StructurePrediction, relax_protein_complex, superposed_on_binder, write_structure
 from bindcraft.proteinmpnn import ProteinMPNNSequenceModel
-from bindcraft.settings import DEFAULT_SETTINGS, PRESET_TIERS, build_design_settings, design_seeds_from_given_coordinates, parse_setting_overrides, read_campaign_metadata, read_settings, requested_core_profiles, requested_preset_names, resolve_cyclic_offset_mode, resolve_validation_model, select_design_and_validation_models, target_state_names, validation_seeds_from_given_coordinates
+from bindcraft.settings import BinderDesignSettings, DEFAULT_SETTINGS, PRESET_TIERS, build_design_settings, design_seeds_from_given_coordinates, parse_setting_overrides, read_campaign_metadata, read_settings, requested_core_profiles, requested_preset_names, resolve_cyclic_offset_mode, resolve_validation_model, select_design_and_validation_models, target_state_names, validation_seeds_from_given_coordinates
 from bindcraft.protein_preparation import receptor_chain_layouts, design_residue_count, frame_holding_target, initialize_design_trajectory, prepare_targets, states_holding_the_frame, target_frame_report, sampled_trajectory_values, validation_target_states
 from bindcraft.trajectory import primary_target_state, run_trajectory
 from bindcraft.trajectory_output import copy_trajectory_animation
@@ -63,6 +63,19 @@ def refuse_predictor_without_distogram(settings: dict, design_model) -> None:
     needed = sorted(name for name in (settings.get('losses') or {}) if name.split('.')[0] in DISTOGRAM_DEPENDENT_LOSSES)
     if needed:
         raise ValueError(f"{type(design_model).__name__} returns no distogram, and these losses read one: {', '.join(needed)}. Use a predictor that provides a distogram, or drop those losses.")
+
+def refuse_unqualified_parent_sequences(design_settings: BinderDesignSettings, design_model, key: jax.Array) -> None:
+    #scanning a neighbourhood only says something about a design that already clears this campaign's own bar, so the parent is judged on it once, up front
+    for parent_name, parent_sequence in sorted(design_settings.binder.sequences.items()):
+        parent_settings = build_design_settings({**design_settings.settings, 'binder_sequences': {parent_name: parent_sequence}})
+        protein_states, _multi_chain_binders, _losses = initialize_design_trajectory(parent_settings, key)
+        predictions = design_model.predict(protein_states)
+        stage_filters = design_stage_filters(parent_settings, protein_states, 'final', campaign_filters=parent_settings.filters)
+        filter_result, measured = evaluate_design_filters(stage_filters, protein_states, predictions)
+        report = ', '.join(f'{name}={value:.3f}' for name, value in sorted(measured.items()))
+        if filter_result is not True:
+            raise ValueError(f"binder_sequences[{parent_name!r}] does not already clear this campaign: {', '.join(filter_result)}. Measured {report}.")
+        print(f'mutational scan: parent {parent_name} clears the bar | {report}', flush=True)
 
 def apply_desperation_settings(design_model, validation_model, settings: dict) -> None:
     design_model.num_recycle = int(settings.get('design_recycles', DEFAULT_SETTINGS['design_recycles']))
@@ -261,6 +274,8 @@ def run_campaign(settings: dict, project_folder: str, af2_weights: str | None=No
     multi_chain_binders = (design_settings.binder_chains,) if design_settings.binder.copies > 1 and design_settings.oligomer_tie == 'symmetric' else ()  #for oligomers
     alphafold_model = AlphaFoldDesignModel(presets=selected_models.design_models, data_dir=af2_weights, max_cache_size=16, num_recycle=settings.get('design_recycles', DEFAULT_SETTINGS['design_recycles']), models=selected_models.design_models, cyclic_offset_mode=resolve_cyclic_offset_mode(settings), subbatch_size=subbatch_size, attention_backend=attention_backend, use_cueq=use_cueq, length_bucket_size=length_bucket_size, multi_chain_binders=multi_chain_binders, target_pad_length=target_pad_length)
     refuse_predictor_without_distogram(settings, alphafold_model)
+    if design_settings.binder.sequences:
+        refuse_unqualified_parent_sequences(design_settings, alphafold_model, key)
     mpnn_model = ProteinMPNNSequenceModel(data_dir=mpnn_weights, max_cache_size=16, model_name=settings.get('mpnn_model', 'v_48_020'), variant=settings.get('mpnn_variant', 'negative'), omitted_amino_acids=design_settings.binder.omitted_amino_acids, amino_acid_bias=design_settings.binder.amino_acid_bias, multi_chain_binders=multi_chain_binders, length_bucket_size=length_bucket_size, target_pad_length=target_pad_length) if mpnn_weights and (not settings.get('trajectory_only')) else None
     build_validation_model = lambda validation_models: AlphaFoldDesignModel(presets=validation_models, data_dir=af2_weights, max_cache_size=16, num_recycle=settings.get('validation_recycles', 3), cyclic_offset_mode=resolve_cyclic_offset_mode(settings), subbatch_size=subbatch_size, attention_backend=attention_backend, use_cueq=use_cueq, length_bucket_size=length_bucket_size, dropout=False, multi_chain_binders=multi_chain_binders, target_pad_length=target_pad_length)
     validation_model = build_validation_model(selected_models.validation_models) if mpnn_model else None

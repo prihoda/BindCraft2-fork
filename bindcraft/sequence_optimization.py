@@ -152,8 +152,11 @@ def interface_confidence_weights(prediction: StructurePrediction, cutoff: float=
     return {name: chain_arrays['weights'] for name, chain_arrays in split_residue_arrays_by_chain(chain_names, tuple(len(protein_complex[name]) for name in chain_names), weights=weights).items()}
 
 class SemigreedySequenceSampler(SequenceMutationSampler):
-    def __init__(self, key: Array | None=None, multi_chain_binders: tuple[tuple[str, ...], ...]=(), mutation_weighting: str='plddt'):
+    def __init__(self, key: Array | None=None, multi_chain_binders: tuple[tuple[str, ...], ...]=(), mutation_weighting: str='plddt', max_mutations_per_sequence: int=0, parent_states: ProteinStates | None=None):
         self.key = jax.random.PRNGKey(0) if key is None else key
+        #for a mutational scan: 0 leaves the walk free to accumulate every improving substitution
+        self.max_mutations_per_sequence = max_mutations_per_sequence
+        self.parent_sequences = {name: protein.sequence.argmax(-1) for name, protein in collect_shared_chains(parent_states)[1].items()} if max_mutations_per_sequence and parent_states else {}
         self.best_protein_states: ProteinStates | None = None
         self.best_design_loss: Array | None = None
         self.chain_plddt: dict[str, Array] = {}
@@ -179,6 +182,11 @@ class SemigreedySequenceSampler(SequenceMutationSampler):
         chain_lengths = tuple(len(shared_chains[name]) for name in chain_names)
         flags = concatenate_chain_arrays(chain_names, shared_chains, 'flags')['flags']
         designed_residue_mask = has_residue_flag(flags, ResidueFlags.DESIGN)
+        if self.parent_sequences:
+            diverged_residues = jnp.concatenate([shared_chains[name].sequence.argmax(-1) != self.parent_sequences[name] if name in self.parent_sequences else jnp.zeros(len(shared_chains[name]), dtype=bool) for name in chain_names])
+            #at the cap only a position that already moved may move again, and since just the current residue is excluded below, going back to the parent stays available
+            if int(diverged_residues.sum()) >= self.max_mutations_per_sequence:
+                designed_residue_mask = designed_residue_mask & diverged_residues
         chain_plddt = {name: self.chain_plddt.get(name, jnp.zeros(len(shared_chains[name]), dtype=jnp.float32)) for name in chain_names}
         #for oligomers and multi-chain binders
         for binder_chain_names in self.multi_chain_binders:

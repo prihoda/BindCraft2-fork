@@ -38,6 +38,7 @@ The other examples below demonstrate explicit settings for particular experiment
 | --- | --- | --- |
 | [pdl1.json](pdl1.json) | Preset-based quickstart | The `hPDL1` target plus the `binder` preset; use this file with modality and property flags. |
 | [pdl1_denovo.json](pdl1_denovo.json) | De novo miniprotein | One structured target; 60–100 residue binders. |
+| [pdl1_mutational_scan.json](pdl1_mutational_scan.json) | Mutational scan | Explore the one-substitution neighbourhood of a binder sequence you already accepted. **Replace the placeholder in `binder_sequences` with your own design**: the campaign folds each parent once at startup and refuses to run if it does not already clear the campaign's own filters. |
 | [pdl1_ortholog_pair.json](pdl1_ortholog_pair.json) | Multitargeting | One sequence against the `hPDL1` and `mPDL1` targets, each with its own hotspots. |
 | [pdl1_detarget_pd1.json](pdl1_detarget_pd1.json) | Detargeting | The `hPDL1` target with the `hPD1` off-target; explicit detarget confidence ceilings. |
 | [il7ra_focused_epitope.json](il7ra_focused_epitope.json) | Forced targeting and coldspots | Drive contact onto a named ten-residue IL-7Rα patch and require the accepted design to touch it; the rest of the exposed face is kept free by the target's own coldspots. |

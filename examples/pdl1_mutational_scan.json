@@ -1,0 +1,15 @@
+{
+  "target": "hPDL1",
+  "binder_sequences": {
+    "binder1": "AEAERLAATLAYVAEHEGEDLRFGIIELSTKISIKESPRVPGTPEAFRAALAAALAEAQALVAAAKGIASGSVHVVAHMERPSGQEDTLFAWRFDV"
+  },
+  "mutational_scan": true,
+  "number_of_final_designs": 30,
+  "max_trajectories": 60,
+  "min_iptm_final": 0.6,
+  "min_monomer_plddt_final": 0.7,
+  "project_folder": "results/pdl1_mutational_scan",
+  "aa_bias": {
+    "C": 0
+  }
+}

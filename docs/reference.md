@@ -32,7 +32,7 @@ Each layer overrides the ones above it in the table. A target therefore wins ove
 
 ### Every setting at its default
 
-[settings/core/reference.json](../settings/core/reference.json) is the catalogue of all 235 settings BC2 reads, each written at its default. `null` there means off or unset, not zero. **This file is never loaded**; it is documentation only. Change a default for every campaign in [settings/core/default.json](../settings/core/default.json), and change one campaign in its own JSON or with `--set`.
+[settings/core/reference.json](../settings/core/reference.json) is the catalogue of all 238 settings BC2 reads, each written at its default. `null` there means off or unset, not zero. **This file is never loaded**; it is documentation only. Change a default for every campaign in [settings/core/default.json](../settings/core/default.json), and change one campaign in its own JSON or with `--set`.
 
 ### Paths
 
@@ -74,6 +74,7 @@ Metadata is a separate JSON object for author, project and other descriptive fie
 | `binder_lengths` | Preset or scaffold | `[80,80]` fixes 80 residues; `[60,100]` allows the inclusive range; `[60,80,100]` allows only those choices. Length is per copy for an oligomer. |
 | `binder_scaffold` | Unset | Supply an existing binder fold; overrides de novo length selection. |
 | `mutate_positions` | Preset or unset | Select scaffold residues to redesign, resize or mark as binding/non-binding. |
+| `binder_sequences` | Unset | `{"name": "SEQUENCE"}`: start from binder sequences you already accepted rather than from a fold or a length. See [mutational scan](#mutational-scan). |
 | `aa_bias` | Preset; `binder` excludes C | Amino-acid propensities: 1 neutral, 2 favoured, 0.4 disfavoured, 0 excluded. Applies to design and redesign. |
 | `copies` | 1; oligomer preset 2 | Number of binder copies in an assembly. |
 | `oligomer_tie` | `symmetric` | Tie copy identities and sequence redesign. `none` leaves copies independent; it does not enforce an identical-sequence oligomer. |
@@ -109,6 +110,9 @@ Named scaffold presets already provide matching edits. When substituting another
 | `anneal_steps` | 45 | Progress toward discrete sequences. |
 | `harden_steps` | 5 | Optimise a discrete sequence. |
 | `mutate_steps` | 15 | Try substitutions that improve the result. |
+| `max_mutations_per_sequence` | Unset | Cap how far the `mutate` walk may travel from the sequence it started at. Unset lets it accumulate every improving substitution. |
+
+A stage given 0 steps is switched off rather than run empty, so a campaign can consist of the `mutate` stage alone.
 
 Stage checks run after `screen`, `refine`, `anneal`, `harden`, `mutate` and `final`. ProteinMPNN then redesigns surviving binders and candidates undergo validation. Completing a trajectory does not mean a candidate was accepted.
 
@@ -162,8 +166,31 @@ The supplied AlphaFold names are `model_1_multimer_v3` through `model_5_multimer
 | `termini_together` / `--termini-together` | Bring the chain ends together; default final distance ceiling 10 Å. |
 | `termini_accessible` / `--termini-accessible` | Orient both ends away from the target. |
 | `forced_targeting` / `--forced-targeting` | Focus contact on a declared structured epitope; default hotspot coverage floor 0.5. |
+| `mutational_scan` / `--mutational-scan` | Explore the neighbourhood of a binder sequence you already accepted; needs `binder_sequences`. See [mutational scan](#mutational-scan). |
 
 These booleans default to false. They select both objectives and associated thresholds, which explicit settings can override. Sequence and geometric proxies are not measurements of immunogenicity, serum half-life or binding affinity.
+
+### Mutational scan
+
+`binder_sequences` starts a campaign from binder sequences you already have instead of from a fold or a
+length: `{"binder1": "AEAERLAAT..."}`, one entry per parent, each a plain one-letter sequence. Each
+trajectory draws one parent, and the parent's identity is recorded in the design name and hash so two
+parents never collide.
+
+The parent is supplied **as sequence only**. No coordinates are handed to the predictor, which is the
+point: the binder is folded from scratch every time, so pLDDT and ipTM are free to tell a variant apart
+from its parent. The whole binder is held through ProteinMPNN, so the sequence the `mutate` stage
+settled on is the sequence validation actually scores.
+
+Before any trajectory runs, each parent is folded once against the target and put through the campaign's
+own `final` filters. If a parent does not already clear them the campaign **stops** and prints what it
+measured — scanning a neighbourhood only says something about a design that is already good.
+
+The `mutational_scan` property preset switches off all four gradient stages, gives the `mutate` stage 50
+rounds, caps the walk at `max_mutations_per_sequence: 1`, and requires `min_binder_mutations_final: 1` so a trajectory
+that improved on nothing does not re-accept the parent. Set `max_mutations_per_sequence: 2` for double mutants; raise
+`mutate_steps` to cover more of the neighbourhood per trajectory, at a proportional cost. The
+`Binder_Mutations` column in the ranked table reports each accepted design's distance from its parent.
 
 ### Targeting options
 
